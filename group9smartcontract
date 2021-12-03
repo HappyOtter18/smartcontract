@@ -63,10 +63,10 @@ contract FundRaising {
     function WithdrawForPublic() public {
         require(block.timestamp > endTime, "The time is not over, the Fundraising not closed");
         require(total < goal, "Can not withdraw when fundraising is successful, the expected amount is collected");
-        uint amount = donations[tx.origin];
-        total -= amount;
+        uint amountspend = donations[tx.origin];
+        total -= amountspend;
         donations[tx.origin] = 0;
-        payable(tx.origin).transfer(amount);
+        payable(tx.origin).transfer(amountspend);
     } 
 
     //Once the fundraising came to an end, so that the amount required is collected.
