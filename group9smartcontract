@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: MIT 
+
+// 00000000000000000
+//(Example of a reason)
+/* 🦦 In order to support the otters of Switzerland, the foundation ProLutra seeks to collect funds 
+in order to record and protect the otters that continue to be reintroduced 
+on the Swiss territory. 🦦 */
+// 0x84FEc57ac2d6be92cD6416853d13dc740117958F
+// I changed all the msg.sender to tx.origin because if this is sent from another smart contract we cannot see who sent the message
+
+pragma solidity ^0.8.9;
+
+//The uint are public, so we can observe them 
+//The adress who send the donation must be able to receive it --> payable
+//Immutable: we cannot change it after the deployment of the constructor 
+contract FundRaising {
+    address payable public immutable beneficiary;
+    uint public goal;
+    uint public endTime;
+    uint public total = 0;
+    bool public hasEnded;
+    string private text1 = "Thank you for your Donation";
+    string private text2 = "You didn't spent anything";
+    string public fundraisingReason;
+    
+    // The storage, key -> value type. So the adress send some donation which is a uint 
+    mapping(address=>uint) donations;
+
+    // To give information to others about the contract
+    // indexed to store a hashed value 
+    event outcome(address indexed receiver, uint amount);
+    
+    //The constructor is a special function that is executed when the contract is deployed.
+    //To initialize state variables of the contract. The ones we have at the beginning so: 
+    //Owner: to know who send the transaction, automatic
+    //Goal: we have to write it, how much money we hope to have with the fundraising
+    //Endtime: we have to define it, how much time is the fundraising 
+    constructor(uint _goal, uint _timeLimitinminutes, address _beneficiary, string memory _fundraisingReason)  {
+        beneficiary = payable(_beneficiary);
+        goal = _goal;
+        fundraisingReason = _fundraisingReason; 
+        endTime = block.timestamp + _timeLimitinminutes * 1 minutes;
+    }
+
+    //Donation function: to give money in the fund before the time is over and before a certain goal is reached 
+    //The value of the donation must be higher than 0 
+    //The values of the donations are compiled, so that we know for each message sender how much he gave and he can make multiple donations
+    //The total of all donations is the total of all values send.
+    function donate() payable public {
+        require(block.timestamp < endTime, "Time is over, the fundraising is closed.");
+        require(total < goal, "There is already enough money in the fund");
+        require(msg.value > 0, "You will send a value of zero, some Ethers are required");
+        donations[tx.origin] += msg.value; 
+        total += msg.value;
+    }
+
+    // If the fundraising doesn't get the required amount, the donators can withdraw their donations
+    // We don't have to remeber how much we gave. Just click withdraw
+    // The time fixed to give the donations must be over 
+    // The goal of the donation must not be attained 
+    // All the donations from the message sender are substracted from the total 
+    // His or her donations are now 0 and the amount is transfered 
+    function WithdrawForPublic() public {
+        require(block.timestamp > endTime, "The time is not over, the Fundraising not closed");
+        require(total < goal, "Can not withdraw when fundraising is successful, the expected amount is collected");
+        uint amount = donations[tx.origin];
+        total -= amount;
+        donations[tx.origin] = 0;
+        payable(tx.origin).transfer(amount);
+    } 
+
+    //Once the fundraising came to an end, so that the amount required is collected.
+    //The fundraising owner (so the one that sent it first) can collect his/her donations
+    //To collect the donations, the goal fixed must be attained. 
+    //The time must not be ended to withdraw the money.
+    //Even if the fundraising is withdraw within the time, it is not possible to do a second donation 
+    function WithdrawForOwner() public {
+        require(payable(tx.origin) == beneficiary, "You must be owner of the fundraising to withdraw it");
+        require(total >= goal, "Fundraising not closed yet, expected amount is not collected");
+        beneficiary.transfer(address(this).balance);
+    }
+    //A function to see how much a donator spent in the fund.
+    function GetTheSumofDonations() public view returns (uint256)  {
+        return donations[tx.origin];
+    }
+    // A function to see if the donation has come to an end 
+    // Either the donation has reached the total value or the time is over
+    function donationEnd() external{ //no reason to be called in the contract 
+        //1 check conditions 
+        require(!hasEnded, "Fundraising has ended"); 
+        //has ended set to false, otherwise function has ended otherwise no need to call it 
+        require(block.timestamp >= endTime || total >= goal, "Wait for auction to end "); 
+        //2 apply all internal state changes 
+        hasEnded=true;
+        emit outcome(beneficiary, total);
+    }
+    // A function to get a Thank You when somebody spent something and another message when nothing is spent
+     function  message() public view returns (string memory) {
+         if(donations[tx.origin]!=0){
+             return text1;
+             } else {
+                 return text2;
+         }   
+    }
+}
